@@ -1,13 +1,15 @@
-import React, { useCallback, useEffect, useState } from "react"
-import { Typography, Input, Button, Space, Checkbox, Tooltip, Form, } from 'antd'
+import React, { useEffect, useState } from "react"
+import { Typography, Input, Button, Checkbox, Form, } from 'antd'
 import "./index.scoped.scss"
-import { getDeviceByNo } from "@src/api/request"
-import { CheckboxValueType } from "antd/es/checkbox/Group"
-import { formula1, getFormula1S, getFormula4S, getNByTemp } from "@src/util/formula"
+import { getNByTemp } from "@src/util/formula"
 import _ from "lodash"
 import { ppb2ugm3Multiple } from "@src/util/unit-conversion"
+import { UnitTransformer } from "./UnitTransformer"
+import { Incrementor } from "./Incrementor"
+import { TempCoefficient } from "./TempCoefficient"
+import { StandardCalculator } from "./StandardCalculator"
+import { SensitivityCalculator, Standard } from "./SensitivityCalculator"
 
-const { Search } = Input
 const { Text } = Typography
 
 enum SensorType {
@@ -17,22 +19,32 @@ enum SensorType {
   SO2 = 'SO2',
   H2S = 'H2S',
   NO = 'NO',
+  NH3 = 'NH3',
+  Cl2 = 'Cl2',
+  HCN = 'HCN',
+  HCl = 'HCl',
+  CO2 = 'CO2',
+  TGS = 'TGS',
+  VOCs = 'VOCs',
 }
 
-enum FormulaType {
+export enum FormulaType {
   Formula1 = 'Formula1',
   Formula2 = 'Formula2',
   Formula3 = 'Formula3',
   Formula4 = 'Formula4',
-  Formula5 = 'Formula5'
+  Formula5 = 'Formula5',
+  Formula6 = 'Formula6',
 }
 
-const data: _.Dictionary<{
+export interface SensorOption {
   m?: number
   formula: FormulaType
   coefficients?: number[],
   isDefaultCheck?: boolean
-}> = {
+}
+
+const data: _.Dictionary<SensorOption> = {
   [SensorType.CO]: {
     m: 28,
     formula: FormulaType.Formula1,
@@ -66,21 +78,33 @@ const data: _.Dictionary<{
     m: 30,
     formula: FormulaType.Formula1,
     coefficients: [1.8, 1.8, 1.4, 1.1, 1.1, 1, 0.9, 0.9, 0.8]
+  },
+  [SensorType.NH3]: {
+    m: 17,
+    formula: FormulaType.Formula5,
+  },
+  [SensorType.Cl2]: {
+    m: 70,
+    formula: FormulaType.Formula5,
+  },
+  [SensorType.HCN]: {
+    m: 27,
+    formula: FormulaType.Formula5,
+  },
+  [SensorType.HCl]: {
+    m: 36,
+    formula: FormulaType.Formula5,
+  },
+  [SensorType.CO2]: {
+    m: 44,
+    formula: FormulaType.Formula5,
+  },
+  [SensorType.TGS]: {
+    formula: FormulaType.Formula6,
+  },
+  [SensorType.VOCs]: {
+    formula: FormulaType.Formula6,
   }
-}
-
-interface Option {
-  WE: number
-  AE: number
-  s: number
-}
-
-interface Standard {
-  WE0: number
-  AE0: number
-  WE1: number
-  AE1: number
-  Standard: number
 }
 
 export function SensorFrom({
@@ -94,338 +118,75 @@ export function SensorFrom({
 }) {
 
   const [s, setS] = useState<number>()
+  const [n, setN] = useState<number>()
   const [standard, setStandard] = useState<Standard>()
-  const [option, setOption] = useState<Option>()
-  const [zeroPPB, setZeroPPB] = useState<number>()
-  const [standardPPB, setStandardPPB] = useState<number>()
-  const [isChanged, SetChanged] = useState(false)
-  const [converted, setConverted] = useState<number>()
-  const [convert,setConvert] = useState<number>()
+  const [multiple, setMultiple] = useState<number>()
 
   const sensorOption = data[sensor]
 
-  const getN = () => {
-    const coefficients = sensorOption?.coefficients
+  const { m,coefficients } = sensorOption
+
+  useEffect(() => {
     if (temperature === undefined || !coefficients?.length) {
       return undefined
     }
-    const n = getNByTemp({ coefficients, temp: temperature })
-    return n
-  }
-const getMultiple = () => {
-    return ppb2ugm3Multiple({
+    setN(getNByTemp({ coefficients, temp: temperature }))
+  }, [temperature])
+
+
+  useEffect(() => {
+    setMultiple(ppb2ugm3Multiple({
       m: sensorOption.m,
       pa: pressure,
       temp: temperature
-    })
-  }
-
-  useEffect(() => {
-    const n = getN()
-
-    if (standard === undefined || option === undefined || n === undefined) {
-      return
-    }
-
-    const {
-      WE0,
-      AE0,
-      WE1,
-      AE1,
-    } = standard
-
-    const { WE, AE, s } = option
-
-    setZeroPPB(formula1({
-      WEu: WE0,
-      AEu: AE0,
-      WEe: WE,
-      AEe: AE,
-      nt: n
-    }) / s)
-
-    setStandardPPB(formula1({
-      WEu: WE1,
-      AEu: AE1,
-      WEe: WE,
-      AEe: AE,
-      nt: n
-    }) / s)
-
-  }, [standard, option])
-
-  useEffect(()=>{
-    const multiple = getMultiple()
-    if(multiple === undefined || convert === undefined) {
-      return
-    }
-
-    setConverted(isChanged
-      ? convert /multiple
-      : convert * multiple)
-  },[isChanged,convert,temperature,pressure])
-
-  
-
-  const getUgm3 = (ppb?: number) => {
-    const multiple = getMultiple()
-    if (multiple === undefined || ppb === undefined) {
-      return undefined
-    }
-
-    return ppb * multiple
-  }
-
-  const handleSubmitStandard = (value: any) => {
-    console.info('[handleSubmitStandard]', { value })
-    const { WE1, AE1, WE0, AE0, Standard } = value
-    const nt = getN()
-    if (WE1 === undefined ||
-      WE0 === undefined ||
-      AE1 === undefined ||
-      AE0 === undefined ||
-      Standard === undefined ||
-      nt === undefined) {
-      return
-    }
-    setS(getFormula1S({
-      WE1: Number(WE1),
-      WE0: Number(WE0),
-      AE1: Number(AE1),
-      AE0: Number(AE0),
-      nt,
-      Standard: Number(Standard)
     }))
+  }, [pressure, temperature])
 
-    setStandard({
-      WE1: Number(WE1),
-      WE0: Number(WE0),
-      AE1: Number(AE1),
-      AE0: Number(AE0),
-      Standard: Number(Standard)
-    })
-  }
-
-  const handleSubmitOption = (value: any) => {
-    console.info('[handleSubmitOption]', { value })
-    const { WE, AE, s } = value
-    setOption({
-      WE: Number(WE),
-      AE: Number(AE),
-      s: Number(s)
-    })
-
-  }
-
-  const getWEp = () => {
-    const multiple = getMultiple()
-    if (s === undefined || multiple === undefined) {
-      return undefined
+  const renderUnitTransformer = () => {
+    if (!m) {
+      return
     }
-    return 1 / s * multiple
+    return (
+      <div>
+        <TempCoefficient
+          n={n}
+          temperature={temperature}
+          pressure={pressure}
+          multiple={multiple}
+          sensorOption={sensorOption}
+        />
+        <UnitTransformer multiple={multiple} />
+      </div>
+    )
   }
 
-  const getAEp = () => {
-    const n = getN()
-    const multiple = getMultiple()
-    if (
-      n === undefined ||
-      s === undefined ||
-      multiple === undefined) {
-      return undefined
-    }
-    return -n / s * multiple
-  }
-
-  const handleConvertFieldChange = (values: any[]) => {
-    console.info('[handleConvertFieldChange]', { values })
-
-    const value = Number(values[0].value)
-    setConvert(value)
-    // const multiple = getMultiple()
-    // if (multiple === undefined) {
-    //   return
-    // }
-    // setConverted(isChanged
-    //   ? value / multiple
-    //   : value * multiple
-    // )
-  }
-
-  const handleConvertChange = () => {
-    SetChanged(it => !it)
-  }
-
-  const getUnit = (isChanged: boolean) => {
-    return isChanged ? 'ug/m3' : 'PPB'
-  }
-
-  return (<div>
+  return (<div
+    key={sensor}
+  >
     <Text>{sensor}</Text>
-    <Form
-      name='n'
-      layout="inline">
-      <Form.Item
-        label='n'
-        name='n'
-      >
-        <Tooltip title={`${temperature}℃ 下的温度补偿系数`}>
-          <Text>{getN()?.toFixed(2) ?? '-'}</Text>
-        </Tooltip>
-      </Form.Item>
-      <Form.Item
-        label='multiple'
-        name='multiple'
-      >
-        <Tooltip title={`${temperature}℃ ${pressure}Pa 下1ppb转ug/m3倍数`}>
-          <Text>{getMultiple()?.toFixed(2) ?? '-'}</Text>
-        </Tooltip>
-      </Form.Item>
-    </Form>
 
-    <Form layout="inline"
-      onFieldsChange={handleConvertFieldChange}>
-      <Form.Item
-        label='convert'
-        name='convert'
-        rules={[{ required: true, message: 'convert' }]}
-      ><Input type='number' style={{ width: 150 }} addonAfter={getUnit(isChanged)} /></Form.Item>
-      <Form.Item>
-        <Button type="primary" htmlType="submit" onClick={handleConvertChange}>
-          change
-        </Button></Form.Item>
-      <Form.Item
-        label='converted'
-        name='converted'
-      >
-        <Input 
-        disabled
-        type='number' style={{ width: 150 }} 
-        placeholder={converted?.toFixed(2) ?? '-'} 
-        addonAfter={getUnit(!isChanged)} />
-        {/* <Text>{`${converted?.toFixed(2) ?? '-'} ${getUnit(!isChanged)}`}</Text> */}
-      </Form.Item>
-    </Form>
-    <Form
-      layout='inline'
-      onFinish={handleSubmitStandard}
-    >
-      <Form.Item
-        label='WE0'
-        name='WE0'
-        rules={[{ required: true, message: 'WE0' }]}
-      >
-        <Input type='number' style={{ width: 100 }} />
-      </Form.Item>
-      <Form.Item
-        label='AE0'
-        name='AE0'
-        rules={[{ required: true, message: 'AE0' }]}
-      >
-        <Input type='number' style={{ width: 100 }} />
-      </Form.Item>
-      <Form.Item
-        label='WE1'
-        name='WE1'
-        rules={[{ required: true, message: 'WE1' }]}
-      >
-        <Input type='number' style={{ width: 100 }} />
-      </Form.Item>
-      <Form.Item
-        label='AE1'
-        name='AE1'
-        rules={[{ required: true, message: 'AE1' }]}
-      >
-        <Input type='number' style={{ width: 100 }} />
-      </Form.Item>
-      <Form.Item
-        label='Standard'
-        name='Standard'
-        rules={[{ required: true, message: 'Standard' }]}
-      >
-        <Input type='number' addonAfter='PPB' style={{ width: 150 }} />
-      </Form.Item>
-      <Form.Item>
-        <Button type="primary" htmlType="submit">
-          submit
-        </Button>
-      </Form.Item>
-    </Form>
-    <Form
-      name='s'
-      layout="inline">
-      <Form.Item
-        label='s'
-        name='s'
-      >
-        <Tooltip title='根据输入参数得出的灵敏度'>
-          <Text>{s?.toFixed(2) ?? '-'}</Text>
-        </Tooltip>
-      </Form.Item>
-      <Form.Item
-        label='WEp'
-        name='WEp'
-      >
-        <Tooltip title='WE每提升1个单位，最终计算数值减少N个ug/m3'>
-          <Text>{(getWEp()?.toFixed(2) ?? '-') + 'ug/m3'}</Text>
-        </Tooltip>
-      </Form.Item>
-      <Form.Item
-        label='AEp'
-        name='AEp'
-      >
-        <Tooltip title='AE每提升1个单位，最终计算数值减少N个ug/m3'>
-          <Text>{(getAEp()?.toFixed(2) ?? '-') + 'ug/m3'}</Text>
-        </Tooltip>
-      </Form.Item>
-    </Form>
-    <Form
-      layout='inline'
-      onFinish={handleSubmitOption}
-    >
-      <Form.Item
-        label='WE'
-        name='WE'
-        rules={[{ required: true, message: 'WE' }]}
-      >
-        <Input type='number' style={{ width: 100 }} />
-      </Form.Item>
-      <Form.Item
-        label='AE'
-        name='AE'
-        rules={[{ required: true, message: 'AE' }]}
-      >
-        <Input type='number' style={{ width: 100 }} />
-      </Form.Item>
-      <Form.Item
-        label='s'
-        name='s'
-        rules={[{ required: true, message: 's' }]}
-      >
-        <Input type='number' style={{ width: 100 }} />
-      </Form.Item>
-      <Button type="primary" htmlType="submit">
-        submit
-      </Button>
-    </Form>
-    <Form layout='inline'>
-      <Form.Item
-        label='zero'
-        name='zero'
-      >
-        <Tooltip title={`根据校准参数计算出零点数值`}>
-          <Text>{`${zeroPPB?.toFixed(2) ?? '-'} ppb => ${getUgm3(zeroPPB)?.toFixed(2) ?? '-'} ug/m3`}</Text>
-        </Tooltip>
-      </Form.Item>
-      <Form.Item
-        label='Standard'
-        name='Standard'
-      >
-        <Tooltip title={`根据校准参数计算出标气数值`}>
-          <Text>{`${standardPPB?.toFixed(2) ?? '-'} ppb => ${getUgm3(standardPPB)?.toFixed(2) ?? '-'} ug/m3`}</Text>
-        </Tooltip>
-      </Form.Item>
-    </Form>
+    {renderUnitTransformer()}
+
+    <SensitivityCalculator
+      onStandardChange={setStandard}
+      onSensitivityChange={setS}
+      nt={n}
+      sensorOption={sensorOption}
+    />
+
+    <Incrementor
+      n={n}
+      s={s}
+      multiple={multiple}
+      sensorOption={sensorOption}
+    />
+
+    <StandardCalculator
+      standard={standard}
+      n={n}
+      multiple={multiple}
+      sensorOption={sensorOption}
+    />
     <div style={{ width: '100%', height: 1, background: 'black' }} />
   </div>
   )
@@ -484,7 +245,12 @@ export default function Tuner() {
       </Form>
 
       <div style={{ width: '100%', height: 1, background: 'black' }} />
-      {checkboxValues.map(sensor => SensorFrom({ sensor, temperature, pressure }))}
+      {checkboxValues.map(sensor => (<SensorFrom
+        key={sensor}
+        sensor={sensor}
+        temperature={temperature}
+        pressure={pressure}
+      />))}
     </div>
   )
 }

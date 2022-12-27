@@ -68,6 +68,15 @@ export function formula4({
   return (WEu - WEe) - WEo - kt
 }
 
+export function formula5({
+  WEu,WEe
+}: {
+    WEu: number,
+    WEe:number,
+  }): number{
+  return WEu-WEe
+}
+
 export function getFormula1S({
   WE1, WE0, AE1, AE0, nt, Standard
 }: {
@@ -90,3 +99,20 @@ export function getFormula4S({
 }): number {
   return (WE1 - WE0) / Standard
 }
+
+export function getFormula5S(params: {
+  WE1: number,
+  WE0: number,
+  Standard: number,
+  }): number{
+  return getFormula4S(params)
+}
+
+export function getFormula6S(params: {
+  WE1: number,
+  WE0: number,
+  Standard: number,
+  }): number{
+  return getFormula4S(params)
+}
+
