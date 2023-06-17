@@ -4,7 +4,7 @@ import path from "path"
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base:'/JellyfishTuner/',
+  base:'/JellyfishTunner/',
   plugins: [react()],
   resolve: {
     alias: [
