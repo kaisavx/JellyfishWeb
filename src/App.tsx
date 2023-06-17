@@ -9,7 +9,7 @@ function App() {
     <div className="App">
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Tuner />} />
+          <Route path="/JellyfishTuner/" element={<Tuner />} />
         </Routes>
       </BrowserRouter>
     </div>
