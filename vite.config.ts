@@ -4,6 +4,7 @@ import path from "path"
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base:'/JellyfishTuner/',
   plugins: [react()],
   resolve: {
     alias: [
@@ -11,9 +12,9 @@ export default defineConfig({
       { find: /^~/, replacement: "" }, // 用于兼容 webpack 导入 less 的写法，以 “～” 开头（@import '~antd/'）
     ],
   },
-  experimental: {
-    renderBuiltUrl(filename: string, { hostType }: { hostType: 'js' | 'css' | 'html' }) {
-      return filename.split('/').filter(Boolean).join('/')
-    }
-  }
+  // experimental: {
+  //   renderBuiltUrl(filename: string, { hostType }: { hostType: 'js' | 'css' | 'html' }) {
+  //     return filename.split('/').filter(Boolean).join('/')
+  //   }
+  // }
 })
