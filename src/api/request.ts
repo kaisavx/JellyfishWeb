@@ -1,5 +1,5 @@
 // import fetch from 'node-fetch'
-import axios from 'axios'
+import { EHRequestBase, EHRequestOption, singleEmqxHttp } from '@src/util/EmqxHttp'
 
 export interface UnitPrecision {
   unit: string
@@ -57,28 +57,12 @@ export interface DeviceOption {
   sendTime?: number
 }
 
-
-export async function getDeviceByNo(no: string): Promise<void> {
-
-  console.info('test')
-  const url = 'http://134.175.109.232/Server/JellyfishServer/Device/getDeviceByNo'
-
-  const res = await axios({
-    method: 'post',
-    url,
-    data: { no }
-  });
-  console.info('json', JSON.stringify(res))
-
-  // const res = await fetch(url, {
-  //   body: JSON.stringify({ no }),
-  //   method: 'POST',
-  //   headers: {
-  //     'Content-Type': 'application/json',
-  //   }
-  // })
-
-  // const json = await res.json()
-
-  // console.info('json',JSON.stringify(json))
+export async function request(params:EHRequestBase): Promise<any> {
+  const token = 'test'
+  if (params.secure) {
+    params.Headers.authorization=`Bearer ${token}`
+  }
+  return singleEmqxHttp.request(params)
 }
+
+export type RequestOption = EHRequestOption
